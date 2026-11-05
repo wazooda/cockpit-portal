@@ -20,7 +20,7 @@ import time
 import cockpit_portal as cp
 import portal_keys as pk
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 APP_NAME = "Cockpit Portal"
 USER = "steamos"
 DEFAULT_NAME = "frame.local"
@@ -89,7 +89,7 @@ class Headset:
         self.address, self.identity = address, identity
 
     def ssh(self, password_login=False):
-        command = ["ssh", "-T", "-o", f"ConnectTimeout={SSH_TIMEOUT_S}", "-o", f"HostKeyAlias={cp.HOST_KEY_ALIAS}",
+        command = [cp.windows_tool("ssh"), "-T", "-o", f"ConnectTimeout={SSH_TIMEOUT_S}", "-o", f"HostKeyAlias={cp.HOST_KEY_ALIAS}",
                    "-o", "StrictHostKeyChecking=accept-new"]
         if password_login:
             command += ["-o", "PubkeyAuthentication=no", "-o", "PreferredAuthentications=password,keyboard-interactive",
@@ -258,13 +258,22 @@ def ensure_key(paths):
     if not os.path.exists(paths.key):
         os.makedirs(os.path.dirname(paths.key), exist_ok=True)
         try:
-            subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "cockpit-portal", "-f", paths.key],
+            subprocess.run([cp.windows_tool("ssh-keygen"), "-q", "-t", "ed25519", "-N", "", "-C", "cockpit-portal", "-f", paths.key],
                            stdin=subprocess.DEVNULL, capture_output=True, creationflags=NO_WINDOW, check=True)
         except (OSError, subprocess.CalledProcessError) as exc:
             raise SetupError("Could not make a key with ssh-keygen. Is Windows' OpenSSH Client installed? "
                              "It is under Settings > System > Optional features.") from exc
+    lock_key(paths.key)
     with open(public, encoding="ascii") as fh:
         return fh.read().strip()
+
+
+def lock_key(path):
+    """Only this user may read the key, or Windows' ssh refuses to use it. A new file in .ssh can inherit wider access."""
+    done = subprocess.run(["icacls", path, "/inheritance:r", "/grant:r", f"{os.environ['USERNAME']}:F"], capture_output=True,
+                          stdin=subprocess.DEVNULL, creationflags=NO_WINDOW, check=False)
+    if done.returncode != 0:
+        log(f"could not set the key's permissions: {done.stdout!r} {done.stderr!r}")
 
 
 def read_config(paths):
@@ -367,7 +376,7 @@ def remove_from_pc(paths):
         for path in (paths.key, paths.key + ".pub"):
             if os.path.exists(path):
                 os.remove(path)
-    subprocess.run(["ssh-keygen", "-R", cp.HOST_KEY_ALIAS], capture_output=True, creationflags=NO_WINDOW, check=False)
+    subprocess.run([cp.windows_tool("ssh-keygen"), "-R", cp.HOST_KEY_ALIAS], capture_output=True, creationflags=NO_WINDOW, check=False)
     shutil.rmtree(paths.data, ignore_errors=True)
 
 

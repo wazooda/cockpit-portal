@@ -2,6 +2,7 @@
 import io
 import json
 import os
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -37,6 +38,22 @@ class Addresses(unittest.TestCase):
     def test_no_link_network(self):
         text = IP_OUTPUT.replace("wlanap", "other")
         self.assertEqual(core.hosts_from(text, "frame", "frame.local"), ["steamos@192.168.1.50", "steamos@frame.local"])
+
+
+class Tools(unittest.TestCase):
+    def test_uses_the_windows_tools_when_they_exist(self):
+        command = core.Headset("x", "key").ssh()[0]
+        if os.path.exists(os.path.join(os.environ["SystemRoot"], "System32", "OpenSSH", "ssh.exe")):
+            self.assertIn(os.path.join("System32", "OpenSSH"), command)
+
+    def test_a_key_ends_up_private_to_this_user(self):
+        with tempfile.TemporaryDirectory() as folder:
+            paths = core.Paths(local=folder, roaming=folder, home=folder)
+            core.ensure_key(paths)
+            shown = subprocess.run(["icacls", paths.key], capture_output=True, text=True, check=True).stdout
+            self.assertNotIn("(I)", shown)
+            # Reading a key applies the same permission check that ssh does.
+            subprocess.run([core.cp.windows_tool("ssh-keygen"), "-y", "-f", paths.key], capture_output=True, check=True)
 
 
 class Errors(unittest.TestCase):

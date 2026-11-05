@@ -46,6 +46,13 @@ QUIT_EVENT_NAME = "Local\\CockpitPortalQuit"
 INFINITE = 0xFFFFFFFF
 
 
+def windows_tool(name):
+    """Windows' own OpenSSH tool. Not whichever comes first on PATH: Git's copies, for example, make keys with
+    permissions that Windows' ssh refuses."""
+    path = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "OpenSSH", name + ".exe")
+    return path if os.path.exists(path) else name
+
+
 def log(msg):
     now = datetime.datetime.now()
     line = f"{now:%Y-%m-%d %H:%M:%S}.{now.microsecond // 1000:03d} {msg}"
@@ -109,7 +116,7 @@ class Link:
     def connect_to(self, host):
         self.close()
         # One name for the headset's key, whichever address reaches it. Trusted the first time, and refused if it changes.
-        command = ["ssh", "-T", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={SSH_CONNECT_S}",
+        command = [windows_tool("ssh"), "-T", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={SSH_CONNECT_S}",
                    "-o", f"HostKeyAlias={HOST_KEY_ALIAS}", "-o", "StrictHostKeyChecking=accept-new",
                    "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=2"]
         if self.config["identity"]:
