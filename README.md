@@ -20,6 +20,40 @@ Set everything up from a page in the SteamVR dashboard.
 The portal is fixed in your view and moves with your head. It does not track your hands, and it stays where you put it rather
 than staying over a real object. A small head movement brings your controls into it.
 
+## What you are installing
+
+You should know what this puts on your equipment before you run it. All the code is here for you to read.
+
+**On your PC**
+
+- A small background program written in Python. You run it directly, so there is no service or driver.
+- Global hotkeys. Windows sends it only the keys it has registered, and they stop reaching other programs while it runs. It is not a key logger: it
+  checks other keys only while the Hotkeys page is waiting for you to press a new one.
+- Your settings and log, in `%LOCALAPPDATA%\CockpitPortal`.
+- An SSH key, and an entry in your `known_hosts` file for the headset.
+
+**On your headset**
+
+- Developer Mode turned on, which you do yourself, and your PC's SSH key. That key can log in to the headset as your user, so keep your PC secure.
+- [mr-chroma-frame](https://github.com/spyjacob/steam-frame-chroma-key), a third-party program built on your headset from its source code. It loads
+  inside the compositor, the part of SteamVR that draws everything you see.
+- A hidden SteamVR setting, `camera/forceSceneAlphaBlending`, turned on.
+- The scripts in `~/cockpit-portal`, and a patched copy of one SteamVR shader, made on your headset.
+
+These all stay in your home folder. SteamVR's and SteamOS's own files are not changed.
+
+**What it connects to**
+
+Only your headset, over SSH on your own network. There are no accounts, analytics or update checks. The one other download is fetching
+mr-chroma-frame from GitHub when you install it.
+
+**What could go wrong**
+
+- This changes how the headset draws its image, in a way Valve does not support. If the image looks wrong, `portal.sh off` or turning the portal off
+  returns to the normal shader, and the [removal steps](#removing-it) take everything out.
+- A SteamVR or SteamOS update can stop it working, or may remove parts of it.
+- The portal only shows what the cameras see, with some delay. Do not rely on it for anything to do with safety.
+
 ## What you need
 
 - A Steam Frame with Developer Mode turned on, streaming from a Windows PC with SteamVR
