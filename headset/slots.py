@@ -76,6 +76,10 @@ class Slots:
         self.working = copy.deepcopy(self.saved)
         last = read_text(LAST)
         self.last = last if last in self.working else "avionics"
+        self.supported = portal("check")[0] == 0
+        # An override is matched by file name, so an open portal must not carry over to a new SteamVR's shader.
+        if not self.supported and self.is_on():
+            portal("off")
 
     def is_on(self):
         return portal("status")[1] == "on"
@@ -137,7 +141,7 @@ class Slots:
         unsaved = [name for name in self.working if self.working[name] != self.saved[name]]
         labels = {name: slot.get("label", name.title()) for name, slot in self.working.items()}
         return 0, json.dumps({"on": self.is_on(), "active": self.last, "slots": list(self.working), "labels": labels,
-                              "unsaved": unsaved})
+                              "unsaved": unsaved, "supported": self.supported})
 
     def status(self):
         return 0, f"{'on' if self.is_on() else 'off'} {self.last} {json.dumps(self.working[self.last])}"

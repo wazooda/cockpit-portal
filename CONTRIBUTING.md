@@ -11,7 +11,7 @@ log first and remove anything you would rather not share, such as addresses.
 
 1. Fork the repository and create a branch.
 2. Keep each pull request to one change, and say what you tried and on what hardware.
-3. Run the tests: `python -m unittest discover -s tests`
+3. Run the tests: `python -m unittest discover -s tests`. To build the installer: `packaging\build.ps1`
 4. Open the pull request. Every change needs a review from the maintainer before it goes in.
 
 Automated checks cannot test a headset. For anything that changes what happens in VR, say that you tried it in the headset. If you

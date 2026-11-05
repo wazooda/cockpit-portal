@@ -2,6 +2,7 @@
 # Turn the passthrough portal on or off, and confirm it from the compositor layer's log.
 #   portal.sh build --centers x,y,x,y --radius R [--soft S]   prebuild, does not apply
 #   portal.sh on | off | toggle | status
+#   portal.sh check                                           exit 0 if this SteamVR's shader can be patched
 # Prints one line: "<requested> confirmed|unconfirmed|FAILED <detail> (<ms> ms)".
 # Exit: 0 confirmed, 3 unconfirmed (no stream to confirm against), 1 failed.
 set -uo pipefail
@@ -74,6 +75,9 @@ set_state() {
 
 cmd="${1:-status}"; shift || true
 case "$cmd" in
+  check)
+    python3 -I "$HERE/gen_circle_spv.py" --check "$STOCK"
+    ;;
   build)
     python3 -I "$HERE/gen_circle_spv.py" "$STOCK" "$BUILT.new" "$@" || exit 1
     mv "$BUILT.new" "$BUILT"

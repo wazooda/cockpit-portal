@@ -6,8 +6,26 @@ Cockpit Portal opens a window in your VR view that shows the real room through t
 the window with a hotkey when you need to reach for a radio, a keyboard or a button box, and close it again when you are done.
 Set everything up from a page in the SteamVR dashboard.
 
-> **Beta.** So far this has been used on one headset and one PC. It relies on unofficial changes to how the headset draws its
-> image, and a SteamVR update can stop it working until the project is updated. Not affiliated with or endorsed by Valve.
+## Why this exists
+
+This is my personal tool. I am a real-world pilot, and I fly Microsoft Flight Simulator 2024 on a Steam Frame with physical avionics panels and a yoke
+to train for real IFR flying. That gave me one very particular problem: I needed to see those panels without taking the headset off. The Frame gives a game streamed from a PC no
+official way to show the real world. This solved it for me, and I thought others in the flight and racing sim community might find it useful too, so I am
+sharing it.
+
+Please keep that in mind. It is built around my setup and has been used on one headset and one PC. Bug reports and pull requests are welcome,
+but I cannot promise support or that it will keep working.
+
+**Thank you to [spyjacob](https://github.com/spyjacob).** Cockpit Portal would not exist without [mr-chroma-frame](https://github.com/spyjacob/steam-frame-chroma-key), which did the hard
+work of getting inside the Frame's compositor and blending the scene with passthrough. Cockpit Portal uses its
+[Vulkan layer](https://github.com/spyjacob/steam-frame-chroma-key/blob/535c5f224768f85d7f011fce9e1cf03e0ea802f8/layer/mrchroma_layer.cpp) to swap in the patched shader, its
+[settings tool](https://github.com/spyjacob/steam-frame-chroma-key/blob/535c5f224768f85d7f011fce9e1cf03e0ea802f8/tools/mrctl.cpp) to turn on the hidden setting, and its
+[build and install scripts](https://github.com/spyjacob/steam-frame-chroma-key/tree/535c5f224768f85d7f011fce9e1cf03e0ea802f8), and this project's shader patch builds on its approach. If this is useful to you, please go and give
+that project a star.
+
+**Use it at your own risk.** It is free, unofficial and not affiliated with or endorsed by Valve. It changes how your headset draws its image, and a
+SteamVR update can stop it working until the project is updated. It comes as is, with no warranty, and the people who made it are not liable for
+anything that happens from using it. The [MIT licence](LICENSE) has the exact terms.
 
 ## What it does
 
@@ -26,97 +44,77 @@ You should know what this puts on your equipment before you run it. All the code
 
 **On your PC**
 
-- A small background program written in Python. You run it directly, so there is no service or driver.
+- `CockpitPortal.exe`, a small background program in `%LOCALAPPDATA%\Programs\CockpitPortal`. It contains its own copy of Python, so you do not need to install
+  anything else, and it needs no administrator rights. There is no service or driver.
+- Shortcuts in your Start Menu and Startup folder, and an entry in **Installed apps** so you can remove it normally.
 - Global hotkeys. Windows sends it only the keys it has registered, and they stop reaching other programs while it runs. It is not a key logger: it
   checks other keys only while the Hotkeys page is waiting for you to press a new one.
-- Your settings and log, in `%LOCALAPPDATA%\CockpitPortal`.
-- An SSH key, and an entry in your `known_hosts` file for the headset.
+- Your settings and logs, in `%LOCALAPPDATA%\CockpitPortal`.
+- An SSH key at `.ssh\id_ed25519_cockpit_portal` in your user folder, and an entry in your `known_hosts` file for the headset.
 
 **On your headset**
 
 - Developer Mode turned on, which you do yourself, and your PC's SSH key. That key can log in to the headset as your user, so keep your PC secure.
-- [mr-chroma-frame](https://github.com/spyjacob/steam-frame-chroma-key), a third-party program built on your headset from its source code. It loads
+- [mr-chroma-frame](https://github.com/spyjacob/steam-frame-chroma-key), a third-party program built on your headset from its source code, at one fixed version. It loads
   inside the compositor, the part of SteamVR that draws everything you see.
 - A hidden SteamVR setting, `camera/forceSceneAlphaBlending`, turned on.
 - The scripts in `~/cockpit-portal`, and a patched copy of one SteamVR shader, made on your headset.
 
 These all stay in your home folder. SteamVR's and SteamOS's own files are not changed.
 
+**Your headset password**
+
+You type it once in the installer. It goes to Windows' own `ssh` to add your PC's key, and is never saved or logged. After that the key is used instead.
+
 **What it connects to**
 
-Only your headset, over SSH on your own network. There are no accounts, analytics or update checks. The one other download is fetching
-mr-chroma-frame from GitHub when you install it.
+Only your headset, over SSH on your own network. There are no accounts, analytics or update checks. The installer also looks up the name `frame.local` on your network to find
+the headset, and the headset downloads mr-chroma-frame from GitHub during setup.
 
 **What could go wrong**
 
-- This changes how the headset draws its image, in a way Valve does not support. If the image looks wrong, `portal.sh off` or turning the portal off
-  returns to the normal shader, and the [removal steps](#removing-it) take everything out.
+- This changes how the headset draws its image, in a way Valve does not support. If the image looks wrong, turning the portal off returns to the normal shader, and
+  [removing it](#removing-it) takes everything out.
 - A SteamVR or SteamOS update can stop it working, or may remove parts of it.
 - The portal only shows what the cameras see, with some delay. Do not rely on it for anything to do with safety.
 
 ## What you need
 
-- A Steam Frame with Developer Mode turned on, streaming from a Windows PC with SteamVR
-- Python 3.10 or newer on the PC (the installer planned below will remove this step)
-- The SteamVR build this release supports. The tools check this before patching anything
+- A Steam Frame streaming from a Windows PC with SteamVR. It has only been tried on Windows 11
+- The SteamVR build this release supports. The installer checks this before installing the layer or the setting
 
 ## Install
 
-A one-step installer is planned. For now the setup is manual and takes about 15 minutes.
+**1. On the headset,** open **Steam Settings > System** and turn on **Developer Mode**. In the new Developer section, choose **Set User Password**.
 
-**1. Turn on Developer Mode.** On the headset: **Steam Settings > System > Enable Developer Mode**. Set a password if asked, and
-find the headset's IP address in its Wi-Fi settings.
+**2. On the PC,** download `CockpitPortalSetup.exe` from [Releases](https://github.com/wazooda/cockpit-portal/releases) and run it. The file is not code-signed, so Windows
+may warn you. Choose **More info > Run anyway** if you are happy to. The [workflow that builds it](.github/workflows/release.yml) is public.
 
-**2. Set up a key so the PC can reach the headset.** In PowerShell on the PC, using your headset's address:
+**3. Follow the wizard.** It looks for your headset, asks for the password once and shows each step as it goes. If SteamVR needs to restart, it asks first. It is safe to run again, and
+running a new version over an old one keeps your saved positions and keys.
+
+**4. Fix any double image.** See [Using it](#using-it).
+
+<details>
+<summary>Install by hand from the source code</summary>
+
+You need Python 3.10 or newer and the headset's IP address, from its Wi-Fi settings. In PowerShell, from this project's folder:
 
 ```powershell
 ssh-keygen -t ed25519 -f $HOME\.ssh\id_ed25519_cockpit_portal -N '""'
-type $HOME\.ssh\id_ed25519_cockpit_portal.pub | ssh steamos@<headset-ip> "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
-```
-
-**3. Install the compositor layer on the headset.** Cockpit Portal is built on
-[mr-chroma-frame](https://github.com/spyjacob/steam-frame-chroma-key), which makes the shader change possible. This builds it on
-the headset, which already has the tools it needs. Log in with `ssh steamos@<headset-ip>`, then run:
-
-```bash
-git clone https://github.com/spyjacob/steam-frame-chroma-key ~/mr-chroma
-cd ~/mr-chroma
-git checkout 535c5f2
-./build.sh && ./install.sh
-touch ~/.config/mrchroma/enable-compositor
-~/.local/share/mrchroma/mrctl set-bool camera forceSceneAlphaBlending 1
-```
-
-Then restart SteamVR on the headset.
-
-**4. Copy Cockpit Portal to the headset.** From this project's folder on the PC:
-
-```powershell
-ssh steamos@<headset-ip> "mkdir -p ~/cockpit-portal"
+type $HOME\.ssh\id_ed25519_cockpit_portal.pub | ssh steamos@<headset-ip> "mkdir -p ~/.ssh ~/cockpit-portal && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 scp headset\* steamos@<headset-ip>:cockpit-portal/
-ssh steamos@<headset-ip> "chmod +x ~/cockpit-portal/portal.sh"
-```
-
-**5. Set up the PC.**
-
-```powershell
+ssh steamos@<headset-ip> "chmod +x ~/cockpit-portal/*; ~/cockpit-portal/setup.sh install"
 pip install -r requirements.txt
 mkdir $env:LOCALAPPDATA\CockpitPortal
 copy config.example.json $env:LOCALAPPDATA\CockpitPortal\config.json
 notepad $env:LOCALAPPDATA\CockpitPortal\config.json
-```
-
-Put your headset's address in `hosts`. You can list more than one, such as its streaming-link address and its Wi-Fi address. They
-are tried in order, so it keeps working if one is down.
-
-**6. Run it.**
-
-```powershell
 pythonw pc\cockpit_portal.py
 ```
 
-Start streaming, open the SteamVR dashboard and look for **Cockpit Portal**. To start it with Windows, put a shortcut to that
-command in your Startup folder. To close it: `python pc\cockpit_portal.py quit`.
+Put your headset's address in `hosts`. If the output of `setup.sh` ends with `@@ RESTART`, also run `ssh steamos@<headset-ip> "systemctl --user restart steamvr"`.
+
+</details>
 
 ## Using it
 
@@ -150,13 +148,14 @@ position, go to **Adjust**, tap the arrows under **Looks double?** until you see
 
 ## Removing it
 
-```powershell
-python pc\cockpit_portal.py quit
-ssh steamos@<headset-ip> "~/cockpit-portal/portal.sh off; rm -rf ~/cockpit-portal; cd ~/mr-chroma && ./uninstall.sh"
-```
+Turn the headset on, then remove **Cockpit Portal** under **Settings > Apps > Installed apps** in Windows. That removes it from the PC and the headset, including your saved
+positions and hotkeys, and takes this PC's key off the headset. If you already had mr-chroma-frame before installing, it and its settings are left in place.
 
-On the PC, delete `%LOCALAPPDATA%\CockpitPortal` and your Startup shortcut. The layer installs for your user only, and leaves
-`/usr` and `/opt` unchanged.
+If the headset cannot be reached at that moment, run this on the headset later:
+
+```bash
+bash ~/cockpit-portal/setup.sh uninstall
+```
 
 ## How it works
 
@@ -262,6 +261,9 @@ applied as one.
   length and raises an error, so the page calls the function directly.
 - **Key capture:** hotkeys are paused while waiting for a new key, and `GetAsyncKeyState` reads it from any window.
 - **SSH:** `HostKeyAlias` gives the headset one identity across its addresses. The key is trusted on first connection and refused if it later changes.
+- **Installer:** one exe built with PyInstaller, which also serves as the installed program and the uninstaller, depending on its name and arguments. The wizard uses tkinter. It adds the
+  key by running Windows' `ssh` with `SSH_ASKPASS` pointed back at the exe, which passes the password straight through, so no separate SSH library is needed. On the headset,
+  `headset/setup.sh` does the rest and notes what it added, so removal leaves anything that was already there.
 
 ### What we tried and set aside
 

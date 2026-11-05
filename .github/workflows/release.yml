@@ -1,0 +1,23 @@
+name: Release
+# Pushing a tag such as v0.1.0 builds the installer from that commit and attaches it to a draft release for review.
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install Pillow==11.3.0
+      - run: python -m unittest discover -s tests
+      - run: packaging\build.ps1
+        shell: powershell
+      - run: gh release create "$env:GITHUB_REF_NAME" dist\CockpitPortalSetup.exe --draft --generate-notes
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}

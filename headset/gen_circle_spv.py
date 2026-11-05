@@ -7,6 +7,7 @@ passthrough with ONE_MINUS_DST_ALPHA wherever a < 1.
 Refuses any shader other than the one the ids below were read from, because SteamVR updates can renumber them.
 
 usage: gen_circle_spv.py <stock.spv> <out.spv> --centers x,y[,x,y...] [--radius R] [--soft S]
+       gen_circle_spv.py --check <stock.spv>     exit 0 if this shader can be patched
 """
 import argparse
 import hashlib
@@ -70,7 +71,17 @@ def build_patch(centers, radius, soft):
     return consts, code
 
 
+def sha256_of(path):
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--check":
+        try:
+            return 0 if sha256_of(sys.argv[2]) == STOCK_SHA256 else 3
+        except OSError:
+            return 3
     ap = argparse.ArgumentParser()
     ap.add_argument("stock")
     ap.add_argument("out")
@@ -86,8 +97,7 @@ def main():
     if args.soft <= 0:
         sys.exit("--soft must be > 0")
 
-    with open(args.stock, "rb") as fh:
-        digest = hashlib.sha256(fh.read()).hexdigest()
+    digest = sha256_of(args.stock)
     if digest != STOCK_SHA256:
         sys.exit(f"stock shader changed (sha256 {digest}); re-check the ids before patching")
 
@@ -109,7 +119,8 @@ def main():
         subprocess.run(["spirv-as", "--target-env", "vulkan1.1", dst, "-o", args.out], check=True)
         subprocess.run(["spirv-val", "--target-env", "vulkan1.1", args.out], check=True)
     print("wrote", args.out)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

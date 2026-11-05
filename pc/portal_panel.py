@@ -157,6 +157,7 @@ class Panel:
         d.text((40, 26), "Cockpit Portal", font=self.f["title"], fill=WHITE)
         connected, on = state.get("connected"), state.get("on")
         status = ("Headset not connected", RED) if not connected else \
+                 ("SteamVR version not supported yet", RED) if state.get("supported") is False else \
                  (f"{self.label(state, state.get('active', ''))} is open", GREEN) if on else ("Portal closed", DIM)
         width = d.textlength(status[0], font=self.f["t"])
         d.ellipse((W - 40 - width - 36, 42, W - 40 - width - 14, 64), fill=status[1])
@@ -171,7 +172,10 @@ class Panel:
         if not state.get("connected"):
             self.offline(d)
             return
-        if self.naming and self.keyboard_open:
+        if state.get("supported") is False:
+            d.text((40, 204), "SteamVR has updated. Portals stay off until Cockpit Portal supports this version.",
+                   font=self.f["s"], fill=RED)
+        elif self.naming and self.keyboard_open:
             d.text((40, 200), f"New name for {self.label(state, self.naming)}: {self.typed}_   then tap Enter",
                    font=self.f["h"], fill=AMBER)
         else:
