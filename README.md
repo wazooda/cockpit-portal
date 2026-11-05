@@ -133,6 +133,129 @@ reach the headset over one SSH connection that stays open, which is why they res
 
 This project does not include Valve's shader or any patched copy of it.
 
+## Technical details
+
+### The problem
+
+SteamVR gives a PC-streamed game no official way to show the Frame's passthrough camera. The game's image also reaches the headset
+as a video stream with no transparency, so nothing on the PC can mark part of the picture as see-through. Patching the sim would not help
+for the same reason. The cut-out has to happen on the headset, after the stream is decoded.
+
+### The signal path
+
+```text
+Hotkey or voice tool  ->  RegisterHotKey on the PC  ->  queue  ->  long-lived SSH session
+                                                                            |
+SteamVR dashboard page (OpenVR overlay)  ->  same queue                     v
+                                                               slots.py  ->  portal.sh
+                                                                            |
+              gen_circle_spv.py builds the patched shader, if its values changed
+                                                                            |
+              config updated  ->  vrcmd --reload-shaders  ->  layer swaps the shader
+                                                                            |
+              vrcompositor draws the scene with a hole  ->  camera shows through
+```
+
+### Cutting the hole
+
+Three pieces work together on the headset:
+
+1. **A Vulkan layer.** mr-chroma-frame installs a user-scope implicit Vulkan layer into `vrcompositor`. It intercepts
+   `vkCreateShaderModule`, and when the compositor loads a shader named in `~/.config/mrchroma/mrchroma.conf`, it supplies a different
+   SPIR-V file. Nothing under `/usr` or `/opt` changes.
+2. **A hidden setting.** With `camera/forceSceneAlphaBlending` on, the compositor draws the passthrough camera and blends the scene over
+   it using the scene's alpha. Where alpha is below 1, the camera shows through.
+3. **A patched shader.** Streamed scenes here go through `distort_ps_achromatic_se2.spv`. `gen_circle_spv.py` disassembles the user's own copy
+   with `spirv-dis --raw-id`, replaces the instruction that stores the final colour, reassembles it with `spirv-as`, and checks the result
+   with `spirv-val`.
+
+The inserted code does this for each pixel:
+
+```text
+alpha = 1
+for each eye's centre:
+    d     = distance(gl_FragCoord.xy, centre)
+    alpha = min(alpha, smoothstep(radius - soft, radius + soft, d))
+output = vec4(rgb * alpha, alpha)     // premultiplied
+```
+
+`gl_FragCoord` was a useful find: the stock shader declares it as an input but does not use it, so the patch can place a circle in output
+pixels. The colour is premultiplied, and the soft edge avoids a hard line around the portal.
+
+The patch relies on the shader's internal numeric ids, which a SteamVR update can renumber. So the generator checks the stock shader's
+SHA-256 and refuses any file it has not been checked against. `portal.sh` also records that hash, and refuses to apply an old patch if the
+stock shader has changed. An override is matched by file name alone, so without this a stale patch could be applied to a different shader.
+
+### Placing a circle in each eye
+
+The compositor renders to one 4320x2160 target, with the left eye on the left half. So one portal is two circles in that image, and
+`--centers` takes both. In this target a larger x moves a circle **left** in view, in both eyes, and a larger y moves it **up**.
+
+We first calculated centres from OpenVR's eye and projection data. That worked straight ahead, at a 50 cm focus distance, but drifted
+off-axis. We then measured it directly: a person moved the right eye's circle at seven positions until it looked like one circle:
+
+- Every position could be made to look like one circle.
+- The vertical difference between the eyes grew steadily with sideways angle, about 7 pixels per degree. The calculation predicted about
+  2.5. We have not established why.
+- Horizontal differences showed no simple pattern, which is expected because the eyes fuse them as a change in depth.
+
+That was one person in one run, so it is not a calibration. It is why each position has its own **Looks double?** adjustment instead of relying on a formula,
+and why the defaults are only starting points.
+
+### Making it fast
+
+The first version took a second or more per press, mostly from opening a new SSH connection. It now works like this:
+
+- One SSH session stays open to `slots.py serve`, and is proved alive with a ping before each command.
+- The layer notices config changes by whole-second file time, so `portal.sh` waits only if the previous change was in the same second.
+- `portal.sh` confirms each change from the layer's log, which records whether the compositor got the override. You get a success
+  tone only after that confirmation.
+
+Opening or closing took about 0.2 to 0.3 seconds from key press to confirmation in our tests, and about 0.4 seconds from releasing a push-to-talk button
+with a voice tool. Because of the whole-second rule, rapid adjustments can take 1 to 2 seconds to catch up, so they are added together and
+applied as one.
+
+### The Windows side
+
+- **Hotkeys:** `RegisterHotKey` on the main thread, which is the thread that owns them. Keys with no modifier are provided because a sim
+  reading Raw Input sees a modifier even when another program takes the hotkey. Shift is refused because, alone, it is the VR recenter key in MSFS.
+- **Dashboard page:** an OpenVR dashboard overlay using [pyopenvr](https://github.com/cmbruns/pyopenvr). Pages are drawn with Pillow,
+  and saved in turn to two PNG files so SteamVR never reads one half written. Clicks arrive as overlay mouse events, counted from the bottom.
+- **Avoiding unwanted starts:** it attaches only while `vrmonitor.exe` runs and `isHmdPresent()` is true. A sim can start `vrserver` for a moment, and
+  connecting then could bring up the whole SteamVR interface.
+- **VR keyboard:** `KeyboardFlag_Minimal` is needed for key-by-key events, which is the only way to detect Enter. In that mode the keyboard's own
+  text only held the last key in our tests, so the page keeps its own copy. pyopenvr 2.12's `getKeyboardText` also passes its buffer as the
+  length and raises an error, so the page calls the function directly.
+- **Key capture:** hotkeys are paused while waiting for a new key, and `GetAsyncKeyState` reads it from any window.
+- **SSH:** `HostKeyAlias` gives the headset one identity across its addresses. The key is trusted on first connection and refused if it later changes.
+
+### What we tried and set aside
+
+- **Following the hands.** Quest-style hand tracking was the original goal. An on-headset tracker looked possible but heavy, so it is parked. It
+  probably needs support from Valve.
+- **Following the eyes.** The headset's eye data did follow natural looks. We dropped it because of how pilots work: glance up at a screen
+  while working a radio, and a portal following your eyes would open over that screen.
+- **Moving the portal with a controller.** A background program on the headset could read controller positions during a stream, but none of
+  the five buttons we tried registered. Holding a controller at the spot and using a command could still work, but that has not been built.
+
+### What the stream's network does
+
+The dongle joins a private hidden network that the headset creates (`softapmanager` running `hostapd`). SteamVR's link can also use your home network
+at the same time, and in our measurements both paths carried stream traffic. The private network uses the opposite band from your home
+Wi-Fi.
+
+The dongle startup failure under [Known problems](#known-problems) comes from here. `hostapd` can exit about a second after boot with
+`Device or resource busy`. `softapmanager` then only logs a failure every 20 seconds, and starts it again only when the Wi-Fi frequency changes.
+That is why changing band fixes it and reconnecting to the same network does not.
+
+### Not yet known
+
+- The frame-time cost in a heavy sim, including the cost of `forceSceneAlphaBlending`
+- Why the two eyes' vertical difference is larger than calculated
+- Why the Wi-Fi radio is busy at startup on some boots
+- Why dashboard icons show a question mark on the Frame
+- How well any of this holds up on other headsets, faces and PCs
+
 ## Contributing
 
 Bug reports and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
