@@ -1,0 +1,4 @@
+{
+  "hosts": ["steamos@HEADSET-ADDRESS"],
+  "identity": "~/.ssh/id_ed25519_cockpit_portal"
+}

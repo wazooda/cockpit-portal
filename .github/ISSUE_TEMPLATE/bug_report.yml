@@ -1,0 +1,35 @@
+name: Bug report
+description: Something isn't working
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: steamvr
+    attributes:
+      label: SteamVR version
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: How are you streaming?
+      options:
+        - Wireless dongle
+        - Home Wi-Fi only
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: game
+    attributes:
+      label: Game or sim, if it matters
+  - type: textarea
+    id: log
+    attributes:
+      label: End of the log
+      description: From %LOCALAPPDATA%\CockpitPortal\cockpit_portal.log. Remove anything you would rather not share, such as addresses.
+      render: text
