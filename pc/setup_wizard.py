@@ -308,6 +308,7 @@ def setup():
 def uninstall():
     root = tk.Tk()
     root.withdraw()
+    root.attributes("-topmost", True)    # Windows Settings starts this, and the messages must not open behind it
     if not messagebox.askyesno(f"Remove {core.APP_NAME}", "Remove Cockpit Portal from this PC and from your headset?\n\n"
                                                           "Turn the headset on first, so it can be removed from there too. "
                                                           "Your saved positions and hotkeys will be deleted."):
@@ -330,9 +331,10 @@ def uninstall():
         message = ("Removed from this PC. The headset could not be reached, so its files are still there. "
                    "The README explains how to remove them by hand.")
     core.remove_from_pc(paths)
-    core.remove_program_after_exit(paths)
     messagebox.showinfo(f"Remove {core.APP_NAME}", message)
     root.destroy()
+    # Last, because the program cannot delete itself while it is waiting on that message.
+    core.remove_program_after_exit(paths)
     return 0
 
 

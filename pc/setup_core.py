@@ -20,7 +20,7 @@ import time
 import cockpit_portal as cp
 import portal_keys as pk
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 APP_NAME = "Cockpit Portal"
 USER = "steamos"
 DEFAULT_NAME = "frame.local"
